@@ -1,6 +1,7 @@
 import katex from 'katex';
 import type { ComplexPoint, Viewport } from '../types/index.ts';
 import { DomainColoringRenderer } from './domain-coloring.ts';
+import { getCoordinateMode, onCoordinateModeChange } from '../state/coordinate-mode.ts';
 
 const BG_COLOR = '#000000';
 const MINOR_GRID_COLOR = 'rgba(255, 255, 255, 0.04)';
@@ -51,6 +52,10 @@ export class ComplexPlane {
 
     this.resize();
     this.scheduleRender();
+
+    onCoordinateModeChange(() => {
+      this.markDirty();
+    });
   }
 
   resize() {
@@ -168,8 +173,13 @@ export class ComplexPlane {
     }
 
     const gridSpacing = this.computeGridSpacing();
+    const mode = getCoordinateMode();
 
-    this.drawGrid(gridSpacing);
+    if (mode === 'cartesian') {
+      this.drawGrid(gridSpacing);
+    } else {
+      this.drawPolarGrid(gridSpacing);
+    }
     this.drawAxes();
     this.drawCoefficientCircles();
     this.drawRootGlows();
@@ -178,7 +188,11 @@ export class ComplexPlane {
 
     // HTML overlay labels (after canvas drawing)
     this.usedLabels.clear();
-    this.placeTickLabels(gridSpacing);
+    if (mode === 'cartesian') {
+      this.placeTickLabels(gridSpacing);
+    } else {
+      this.placePolarTickLabels(gridSpacing);
+    }
     this.placeCoefficientLetters();
     this.cleanupLabels();
   }
@@ -263,6 +277,78 @@ export class ComplexPlane {
     }
   }
 
+  private placePolarTickLabels(spacing: number) {
+    const origin = this.complexToScreen({ re: 0, im: 0 });
+    const topLeft = this.screenToComplex(0, 0);
+    const bottomRight = this.screenToComplex(this.width, this.height);
+
+    // Calculate max radius needed
+    const corners = [
+      { re: topLeft.re, im: topLeft.im },
+      { re: bottomRight.re, im: topLeft.im },
+      { re: topLeft.re, im: bottomRight.im },
+      { re: bottomRight.re, im: bottomRight.im },
+    ];
+    let maxRadius = 0;
+    for (const corner of corners) {
+      const dist = Math.sqrt(corner.re * corner.re + corner.im * corner.im);
+      if (dist > maxRadius) maxRadius = dist;
+    }
+    maxRadius = Math.ceil(maxRadius / spacing) * spacing;
+
+    const precision = Math.max(0, -Math.floor(Math.log10(spacing)) + 1);
+
+    // Radius labels along positive real axis
+    for (let r = spacing; r <= maxRadius; r += spacing) {
+      const { x } = this.complexToScreen({ re: r, im: 0 });
+      // Only place if within viewport
+      if (x > 0 && x < this.width) {
+        const labelY = Math.min(Math.max(origin.y + 6, 6), this.height - 16);
+        const latex = formatNumber(r, precision);
+        this.placeLabel(`tick-r-${r.toFixed(6)}`, latex, x, labelY, 'center', 'top');
+      }
+    }
+
+    // Angle labels at π/6 intervals, placed near viewport edges
+    const angleLabels: Array<{ angle: number; latex: string }> = [
+      { angle: 0, latex: '0' },
+      { angle: Math.PI / 6, latex: '\\frac{\\pi}{6}' },
+      { angle: Math.PI / 3, latex: '\\frac{\\pi}{3}' },
+      { angle: Math.PI / 2, latex: '\\frac{\\pi}{2}' },
+      { angle: (2 * Math.PI) / 3, latex: '\\frac{2\\pi}{3}' },
+      { angle: (5 * Math.PI) / 6, latex: '\\frac{5\\pi}{6}' },
+      { angle: Math.PI, latex: '\\pi' },
+      { angle: (-5 * Math.PI) / 6, latex: '-\\frac{5\\pi}{6}' },
+      { angle: (-2 * Math.PI) / 3, latex: '-\\frac{2\\pi}{3}' },
+      { angle: -Math.PI / 2, latex: '-\\frac{\\pi}{2}' },
+      { angle: -Math.PI / 3, latex: '-\\frac{\\pi}{3}' },
+      { angle: -Math.PI / 6, latex: '-\\frac{\\pi}{6}' },
+    ];
+
+    const margin = 30;
+    for (const { angle, latex } of angleLabels) {
+      // Find intersection with viewport edge
+      const cos = Math.cos(angle);
+      const sin = Math.sin(angle);
+
+      // Place label at a radius that puts it near the edge
+      const radiusToEdge = Math.min(
+        cos !== 0 ? Math.abs((cos > 0 ? this.width - origin.x - margin : origin.x - margin) / cos) : Infinity,
+        sin !== 0 ? Math.abs((sin > 0 ? origin.y - margin : this.height - origin.y - margin) / sin) : Infinity,
+      );
+
+      if (radiusToEdge > 40 && radiusToEdge < Infinity) {
+        const x = origin.x + radiusToEdge * cos;
+        const y = origin.y - radiusToEdge * sin;
+
+        // Ensure within viewport
+        if (x > margin && x < this.width - margin && y > margin && y < this.height - margin) {
+          this.placeLabel(`tick-angle-${angle.toFixed(4)}`, latex, x, y, 'center', 'middle');
+        }
+      }
+    }
+  }
+
   private placeCoefficientLetters() {
     if (this.coefficients.length === 0) return;
     const degree = this.coefficients.length - 1;
@@ -336,6 +422,64 @@ export class ComplexPlane {
       const { y } = this.complexToScreen({ re: 0, im });
       ctx.moveTo(0, y);
       ctx.lineTo(this.width, y);
+    }
+    ctx.stroke();
+  }
+
+  private drawPolarGrid(spacing: number) {
+    const { ctx } = this;
+    const origin = this.complexToScreen({ re: 0, im: 0 });
+    const topLeft = this.screenToComplex(0, 0);
+    const bottomRight = this.screenToComplex(this.width, this.height);
+
+    // Calculate max radius needed to cover the viewport
+    const corners = [
+      { re: topLeft.re, im: topLeft.im },
+      { re: bottomRight.re, im: topLeft.im },
+      { re: topLeft.re, im: bottomRight.im },
+      { re: bottomRight.re, im: bottomRight.im },
+    ];
+    let maxRadius = 0;
+    for (const corner of corners) {
+      const dist = Math.sqrt(corner.re * corner.re + corner.im * corner.im);
+      if (dist > maxRadius) maxRadius = dist;
+    }
+    maxRadius = Math.ceil(maxRadius / spacing) * spacing;
+
+    // Minor circles (spacing / 5)
+    const minorSpacing = spacing / 5;
+    ctx.strokeStyle = MINOR_GRID_COLOR;
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    for (let r = minorSpacing; r <= maxRadius; r += minorSpacing) {
+      const rPx = r / this.viewport.scale;
+      ctx.moveTo(origin.x + rPx, origin.y);
+      ctx.arc(origin.x, origin.y, rPx, 0, Math.PI * 2);
+    }
+    ctx.stroke();
+
+    // Major circles
+    ctx.strokeStyle = MAJOR_GRID_COLOR;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let r = spacing; r <= maxRadius; r += spacing) {
+      const rPx = r / this.viewport.scale;
+      ctx.moveTo(origin.x + rPx, origin.y);
+      ctx.arc(origin.x, origin.y, rPx, 0, Math.PI * 2);
+    }
+    ctx.stroke();
+
+    // Radial lines at π/6 intervals (12 lines)
+    const maxRadiusPx = maxRadius / this.viewport.scale;
+    ctx.strokeStyle = MAJOR_GRID_COLOR;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let i = 0; i < 12; i++) {
+      const angle = (i * Math.PI) / 6;
+      const endX = origin.x + maxRadiusPx * Math.cos(angle);
+      const endY = origin.y - maxRadiusPx * Math.sin(angle);
+      ctx.moveTo(origin.x, origin.y);
+      ctx.lineTo(endX, endY);
     }
     ctx.stroke();
   }

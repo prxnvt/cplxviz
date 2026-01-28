@@ -1,7 +1,8 @@
 import { parse, derivative, isComplex, polynomialRoot } from 'mathjs';
 import type { MathNode } from 'mathjs';
 import type { ComplexPoint, Polynomial, ParseResult, RootFindingResult } from '../types/index.ts';
-import { multiply, subtract, divide, evaluatePolynomial, magnitude, formatComplex } from './complex.ts';
+import { multiply, subtract, divide, evaluatePolynomial, magnitude, formatComplex, formatPolarLatex, formatEulerLatex } from './complex.ts';
+import type { CoordinateMode } from '../state/coordinate-mode.ts';
 
 /**
  * Parse a polynomial expression, supporting complex coefficients (including `i`).
@@ -198,9 +199,16 @@ export function formatPolynomial(poly: Polynomial): string {
 }
 
 /** Format polynomial as a LaTeX string for KaTeX rendering. */
-export function formatPolynomialLatex(poly: Polynomial): string {
+export function formatPolynomialLatex(poly: Polynomial, mode: CoordinateMode = 'cartesian'): string {
   const { coefficients, degree, variable } = poly;
   const parts: string[] = [];
+
+  // Choose formatter based on mode
+  const formatCoeff = (c: ComplexPoint): string => {
+    if (mode === 'polar') return formatPolarLatex(c);
+    if (mode === 'euler') return formatEulerLatex(c);
+    return formatComplexLatex(c);
+  };
 
   for (let i = degree; i >= 0; i--) {
     const c = coefficients[i];
@@ -212,7 +220,18 @@ export function formatPolynomialLatex(poly: Polynomial): string {
     let sign: string;
     let term: string;
 
-    if (isReal(c)) {
+    // In polar/euler mode, always use the full formatter
+    if (mode !== 'cartesian') {
+      sign = '+';
+      const coeffStr = formatCoeff(c);
+      if (i === 0) {
+        term = `(${coeffStr})`;
+      } else if (i === 1) {
+        term = `(${coeffStr})${variable}`;
+      } else {
+        term = `(${coeffStr})${variable}^{${i}}`;
+      }
+    } else if (isReal(c)) {
       const absC = Math.abs(re);
       sign = re < 0 ? '-' : '+';
       if (i === 0) {

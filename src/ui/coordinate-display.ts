@@ -1,6 +1,7 @@
 import katex from 'katex';
 import type { ComplexPoint } from '../types/index.ts';
-import { formatComplexLatex, formatPolarLatex } from '../math/complex.ts';
+import { formatComplexLatex, formatPolarLatex, formatEulerLatex } from '../math/complex.ts';
+import { getCoordinateMode, onCoordinateModeChange } from '../state/coordinate-mode.ts';
 
 export class CoordinateDisplay {
   private el: HTMLDivElement;
@@ -16,6 +17,10 @@ export class CoordinateDisplay {
   private lastLabel = '';
   private lastCoeffLatex = '';
   private lastRootsLatex = '';
+  private cachedCoefficients: ComplexPoint[] = [];
+  private cachedRoots: ComplexPoint[] = [];
+  private cachedCursorPoint: ComplexPoint | null = null;
+  private cachedCursorLabel = '';
 
   constructor(container: HTMLElement) {
     this.el = document.createElement('div');
@@ -52,29 +57,66 @@ export class CoordinateDisplay {
     this.el.appendChild(this.rootsLabelEl);
     this.el.appendChild(this.rootsListEl);
     container.appendChild(this.el);
+
+    onCoordinateModeChange(() => {
+      this.invalidateCache();
+      this.rerender();
+    });
+  }
+
+  private invalidateCache(): void {
+    this.lastStandard = '';
+    this.lastPolar = '';
+    this.lastCoeffLatex = '';
+    this.lastRootsLatex = '';
+  }
+
+  private rerender(): void {
+    // Re-render cursor position if we have a cached point
+    if (this.cachedCursorPoint) {
+      this.update(this.cachedCursorPoint, this.cachedCursorLabel);
+    }
+
+    // Re-render polynomial data if we have cached values
+    if (this.cachedCoefficients.length > 0 || this.cachedRoots.length > 0) {
+      this.setPolynomialData(this.cachedCoefficients, this.cachedRoots);
+    }
   }
 
   update(point: ComplexPoint, label: string) {
-    const standardLatex = formatComplexLatex(point);
-    const polarLatex = formatPolarLatex(point);
+    this.cachedCursorPoint = point;
+    this.cachedCursorLabel = label;
+
+    const mode = getCoordinateMode();
 
     if (label !== this.lastLabel) {
       this.labelEl.textContent = label;
       this.lastLabel = label;
     }
 
-    if (standardLatex !== this.lastStandard) {
-      katex.render(standardLatex, this.standardEl, { throwOnError: false });
-      this.lastStandard = standardLatex;
-    }
-
-    if (polarLatex !== this.lastPolar) {
-      katex.render(polarLatex, this.polarEl, { throwOnError: false });
-      this.lastPolar = polarLatex;
+    if (mode === 'cartesian') {
+      const standardLatex = formatComplexLatex(point);
+      if (standardLatex !== this.lastStandard) {
+        katex.render(standardLatex, this.standardEl, { throwOnError: false });
+        this.lastStandard = standardLatex;
+      }
+      this.standardEl.style.display = 'block';
+      this.polarEl.style.display = 'none';
+    } else {
+      const polarLatex = mode === 'polar' ? formatPolarLatex(point) : formatEulerLatex(point);
+      if (polarLatex !== this.lastPolar) {
+        katex.render(polarLatex, this.polarEl, { throwOnError: false });
+        this.lastPolar = polarLatex;
+      }
+      this.standardEl.style.display = 'none';
+      this.polarEl.style.display = 'block';
     }
   }
 
   setPolynomialData(coefficients: ComplexPoint[], roots: ComplexPoint[]) {
+    this.cachedCoefficients = coefficients;
+    this.cachedRoots = roots;
+
     const coeffLatex = this.buildCoeffLatex(coefficients);
     if (coeffLatex !== this.lastCoeffLatex) {
       this.lastCoeffLatex = coeffLatex;
@@ -102,13 +144,20 @@ export class CoordinateDisplay {
     }
   }
 
+  private formatPointForMode(z: ComplexPoint): string {
+    const mode = getCoordinateMode();
+    if (mode === 'cartesian') return formatComplexLatex(z);
+    if (mode === 'polar') return formatPolarLatex(z);
+    return formatEulerLatex(z);
+  }
+
   private buildCoeffLatex(coefficients: ComplexPoint[]): string {
     if (coefficients.length === 0) return '';
     const degree = coefficients.length - 1;
     const lines: string[] = [];
     for (let i = degree; i >= 0; i--) {
       const letter = String.fromCharCode(97 + (degree - i));
-      lines.push(`${letter} = ${formatComplexLatex(coefficients[i])}`);
+      lines.push(`${letter} = ${this.formatPointForMode(coefficients[i])}`);
     }
     return `\\begin{array}{l}${lines.join(' \\\\ ')}\\end{array}`;
   }
@@ -117,7 +166,7 @@ export class CoordinateDisplay {
     if (roots.length === 0) return '';
     const lines: string[] = [];
     for (let i = 0; i < roots.length; i++) {
-      lines.push(`z_{${i + 1}} = ${formatComplexLatex(roots[i])}`);
+      lines.push(`z_{${i + 1}} = ${this.formatPointForMode(roots[i])}`);
     }
     return `\\begin{array}{l}${lines.join(' \\\\ ')}\\end{array}`;
   }

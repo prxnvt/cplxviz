@@ -142,3 +142,35 @@ canvas.dragging {
 .coord-display__list .katex {
   font-size: 22px;
 }
+
+.mode-toggle {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 10;
+  font-family: "KaTeX_Main", "Latin Modern Roman", "Computer Modern", serif;
+  font-size: 22px;
+  pointer-events: auto;
+}
+
+.mode-toggle__separator {
+  color: rgba(255, 255, 255, 0.3);
+  margin: 0 8px;
+  user-select: none;
+}
+
+.mode-toggle__item {
+  color: rgba(255, 255, 255, 0.4);
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.mode-toggle__item:hover {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.mode-toggle__item--active {
+  color: #fff;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}

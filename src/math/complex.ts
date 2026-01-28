@@ -169,7 +169,7 @@ function formatMagnitudeLatex(r: number): string {
   return parseFloat(r.toFixed(3)).toString();
 }
 
-/** Full polar LaTeX string, e.g. "\\sqrt{2}\\left(\\cos\\frac{\\pi}{4} + i\\sin\\frac{\\pi}{4}\\right)" */
+/** Full polar LaTeX string, e.g. "\\sqrt{2}\\left(\\cos(\\frac{\\pi}{4}) + i\\sin(\\frac{\\pi}{4})\\right)" */
 export function formatPolarLatex(z: ComplexPoint, precision = 3): string {
   const re = cleanFloat(z.re, precision);
   const im = cleanFloat(z.im, precision);
@@ -192,8 +192,37 @@ export function formatPolarLatex(z: ComplexPoint, precision = 3): string {
   }
 
   if (rStr === '1') {
-    return `\\cos ${phiStr} + i\\sin ${phiStr}`;
+    return `\\cos\\!\\left(${phiStr}\\right) + i\\sin\\!\\left(${phiStr}\\right)`;
   }
 
-  return `${rStr}\\!\\left(\\cos ${phiStr} + i\\sin ${phiStr}\\right)`;
+  return `${rStr}\\!\\left(\\cos\\!\\left(${phiStr}\\right) + i\\sin\\!\\left(${phiStr}\\right)\\right)`;
+}
+
+/** Euler form LaTeX string, e.g. "\\sqrt{2} \\cdot e^{i\\frac{\\pi}{4}}" */
+export function formatEulerLatex(z: ComplexPoint, precision = 3): string {
+  const re = cleanFloat(z.re, precision);
+  const im = cleanFloat(z.im, precision);
+
+  if (re === 0 && im === 0) return '0';
+
+  const r = magnitude(z);
+  const phi = argument(z);
+  const rStr = formatMagnitudeLatex(r);
+  const phiStr = formatAngleLatex(phi);
+
+  // Simplified forms for real/imaginary axis
+  if (Math.abs(phi) < 1e-10) {
+    // Positive real: just show r
+    return rStr;
+  }
+  if (Math.abs(Math.abs(phi) - Math.PI) < 1e-10) {
+    // Negative real: -r
+    return `-${rStr}`;
+  }
+
+  if (rStr === '1') {
+    return `e^{i${phiStr}}`;
+  }
+
+  return `${rStr} \\cdot e^{i${phiStr}}`;
 }

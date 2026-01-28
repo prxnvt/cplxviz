@@ -4,12 +4,15 @@ import { ComplexPlane } from './visualization/complex-plane.ts';
 import { PolynomialInput } from './ui/input.ts';
 import { ViewControls } from './ui/controls.ts';
 import { CoordinateDisplay } from './ui/coordinate-display.ts';
+import { ModeToggle } from './ui/mode-toggle.ts';
 import { findRoots, formatPolynomial, formatPolynomialLatex, parsePolynomial } from './math/polynomial.ts';
+import { getCoordinateMode, onCoordinateModeChange } from './state/coordinate-mode.ts';
 import type { ComplexPoint, Polynomial } from './types/index.ts';
 
 const app = document.getElementById('app')!;
 const plane = new ComplexPlane(app);
 const coordDisplay = new CoordinateDisplay(app);
+new ModeToggle(app);
 
 let currentPoly: Polynomial | null = null;
 
@@ -34,13 +37,13 @@ function handleInput(value: string) {
   plane.setRoots(roots);
   plane.setCoefficients(currentPoly.coefficients);
   coordDisplay.setPolynomialData(currentPoly.coefficients, roots);
-  polyInput.setLatex(formatPolynomialLatex(currentPoly));
+  polyInput.setLatex(formatPolynomialLatex(currentPoly, getCoordinateMode()));
   return result;
 }
 
 function applyStandardForm(poly: Polynomial) {
   polyInput.setValue(formatPolynomial(poly));
-  polyInput.setLatex(formatPolynomialLatex(poly));
+  polyInput.setLatex(formatPolynomialLatex(poly, getCoordinateMode()));
 }
 
 function updateFromCoefficients(coefficients: ComplexPoint[]) {
@@ -88,3 +91,14 @@ new ViewControls(plane, {
     coordDisplay.update(point, label);
   },
 });
+
+// Re-render polynomial when coordinate mode changes
+onCoordinateModeChange(() => {
+  if (currentPoly) {
+    polyInput.setLatex(formatPolynomialLatex(currentPoly, getCoordinateMode()));
+  }
+});
+
+// Initialize with default polynomial z^4
+polyInput.setValue('z^4');
+handleInput('z^4');
