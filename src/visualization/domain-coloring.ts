@@ -4,8 +4,6 @@ import type { ComplexPoint, Viewport } from '../types/index.ts';
 const PI = Math.PI;
 const TWO_PI = PI * 2;
 const DS = 8;               // downsample factor (higher = more blur)
-const EDGE_MARGIN = 80;     // CSS px fade band at each edge
-const ALPHA_K = 96.0;       // k / (mag + k) — colors extend far from roots
 const MAX_ALPHA = 1.0;      // full intensity at root centers
 
 export class DomainColoringRenderer {
@@ -61,19 +59,17 @@ export class DomainColoringRenderer {
     const originRe = viewport.center.re - (bw / 2) * scaledScale;
     const originIm = viewport.center.im + (bh / 2) * scaledScale;
 
-    // Edge fade precompute (in downsampled pixels)
-    const edgeMarginDS = EDGE_MARGIN / DS;
-    const invEdge = edgeMarginDS > 0 ? 1 / edgeMarginDS : 0;
+    // Circular fade: radius chosen so circle area = half viewport area
+    // Area of circle = π * r², viewport area = bw * bh
+    // π * r² = (bw * bh) / 2  =>  r = sqrt(bw * bh / (2π))
+    const centerX = bw / 2;
+    const centerY = bh / 2;
+    const fadeRadius = Math.sqrt((bw * bh) / (2 * PI));
+    const invFadeRadius = 1 / fadeRadius;
 
     for (let py = 0; py < bh; py++) {
       const zIm = originIm - py * scaledScale;
-
-      // Vertical edge fade
-      const fadeY = py < edgeMarginDS
-        ? py * invEdge
-        : (bh - 1 - py) < edgeMarginDS
-          ? (bh - 1 - py) * invEdge
-          : 1;
+      const dy = py - centerY;
 
       const rowOff = py * bw * 4;
 
@@ -97,18 +93,12 @@ export class DomainColoringRenderer {
         if (idx < 0) idx = 0;
         const lutOff = idx * 3;
 
-        // Intensity: k / (mag + k) — brightest at roots, fading to black with distance
-        const mag = Math.sqrt(wRe * wRe + wIm * wIm);
-        const rootAlpha = ALPHA_K / (mag + ALPHA_K);
+        // Circular fade from center
+        const dx = px - centerX;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const radialFade = Math.max(0, 1 - dist * invFadeRadius);
 
-        // Horizontal edge fade
-        const fadeX = px < edgeMarginDS
-          ? px * invEdge
-          : (bw - 1 - px) < edgeMarginDS
-            ? (bw - 1 - px) * invEdge
-            : 1;
-
-        const alpha = rootAlpha * fadeX * fadeY * MAX_ALPHA;
+        const alpha = radialFade * MAX_ALPHA;
 
         const off = rowOff + px * 4;
         data[off]     = PHASE_COLOR_LUT[lutOff];
