@@ -1,6 +1,6 @@
 import katex from 'katex';
 import type { ComplexPoint, Viewport } from '../types/index.ts';
-import { formatComplexLatex } from '../math/complex.ts';
+import { DomainColoringRenderer } from './domain-coloring.ts';
 
 const BG_COLOR = '#000000';
 const MINOR_GRID_COLOR = 'rgba(255, 255, 255, 0.04)';
@@ -9,8 +9,8 @@ const AXIS_COLOR = 'rgba(255, 255, 255, 1)';
 const ROOT_COLOR_R = 255;
 const ROOT_COLOR_G = 255;
 const ROOT_COLOR_B = 255;
-const ROOT_ORB_RADIUS = 20;
-const ROOT_GLOW_RADIUS = 112;
+const ROOT_ORB_RADIUS = 15;
+const ROOT_GLOW_RADIUS = 38;
 const COEFF_RADIUS = 16;
 const TARGET_GRID_PX = 80;
 const LABEL_SIZE_PX = 22;
@@ -26,6 +26,7 @@ export class ComplexPlane {
   private coefficients: ComplexPoint[] = []; // ascending order (same as Polynomial)
   private dirty = true;
   private rafId = 0;
+  private domainColoring = new DomainColoringRenderer();
 
   // HTML label overlay
   private overlay: HTMLDivElement;
@@ -158,6 +159,14 @@ export class ComplexPlane {
     ctx.fillStyle = BG_COLOR;
     ctx.fillRect(0, 0, this.width, this.height);
 
+    // Domain coloring (phase plot)
+    if (this.coefficients.length > 1) {
+      this.domainColoring.render(
+        ctx, this.width, this.height,
+        this.viewport, this.coefficients, this.roots,
+      );
+    }
+
     const gridSpacing = this.computeGridSpacing();
 
     this.drawGrid(gridSpacing);
@@ -170,8 +179,7 @@ export class ComplexPlane {
     // HTML overlay labels (after canvas drawing)
     this.usedLabels.clear();
     this.placeTickLabels(gridSpacing);
-    this.placeCoefficientLabels();
-    this.placeRootLabels();
+    this.placeCoefficientLetters();
     this.cleanupLabels();
   }
 
@@ -255,7 +263,7 @@ export class ComplexPlane {
     }
   }
 
-  private placeCoefficientLabels() {
+  private placeCoefficientLetters() {
     if (this.coefficients.length === 0) return;
     const degree = this.coefficients.length - 1;
 
@@ -263,31 +271,7 @@ export class ComplexPlane {
       const coeff = this.coefficients[i];
       const letter = String.fromCharCode(97 + (degree - i));
       const { x, y } = this.complexToScreen(coeff);
-
       this.placeLabel(`coeff-letter-${i}`, letter, x, y, 'center', 'middle');
-      this.placeLabel(
-        `coeff-value-${i}`,
-        formatComplexLatex(coeff),
-        x,
-        y + COEFF_RADIUS + 3,
-        'center',
-        'top',
-      );
-    }
-  }
-
-  private placeRootLabels() {
-    for (let i = 0; i < this.roots.length; i++) {
-      const root = this.roots[i];
-      const { x, y } = this.complexToScreen(root);
-      this.placeLabel(
-        `root-${i}`,
-        formatComplexLatex(root),
-        x,
-        y - ROOT_ORB_RADIUS - 4,
-        'center',
-        'bottom',
-      );
     }
   }
 
@@ -401,42 +385,19 @@ export class ComplexPlane {
     for (const root of this.roots) {
       const { x, y } = this.complexToScreen(root);
 
-      // Layered glow — smooth inverse-square–like falloff
-      // Layer 1: Wide ambient glow
-      const glow1 = ctx.createRadialGradient(x, y, 0, x, y, ROOT_GLOW_RADIUS);
-      glow1.addColorStop(0, `rgba(${r}, ${g}, ${b}, 0.06)`);
-      glow1.addColorStop(0.3, `rgba(${r}, ${g}, ${b}, 0.035)`);
-      glow1.addColorStop(0.6, `rgba(${r}, ${g}, ${b}, 0.015)`);
-      glow1.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0)`);
-      ctx.fillStyle = glow1;
+      // Tight white core — domain coloring provides the colored glow
+      // Inner glow
+      const glowRadius = ROOT_GLOW_RADIUS;
+      const glow = ctx.createRadialGradient(x, y, 0, x, y, glowRadius);
+      glow.addColorStop(0, `rgba(${r}, ${g}, ${b}, 0.25)`);
+      glow.addColorStop(0.4, `rgba(${r}, ${g}, ${b}, 0.12)`);
+      glow.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0)`);
+      ctx.fillStyle = glow;
       ctx.beginPath();
-      ctx.arc(x, y, ROOT_GLOW_RADIUS, 0, Math.PI * 2);
+      ctx.arc(x, y, glowRadius, 0, Math.PI * 2);
       ctx.fill();
 
-      // Layer 2: Mid glow
-      const glow2Radius = ROOT_GLOW_RADIUS * 0.6;
-      const glow2 = ctx.createRadialGradient(x, y, 0, x, y, glow2Radius);
-      glow2.addColorStop(0, `rgba(${r}, ${g}, ${b}, 0.14)`);
-      glow2.addColorStop(0.35, `rgba(${r}, ${g}, ${b}, 0.07)`);
-      glow2.addColorStop(0.7, `rgba(${r}, ${g}, ${b}, 0.025)`);
-      glow2.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0)`);
-      ctx.fillStyle = glow2;
-      ctx.beginPath();
-      ctx.arc(x, y, glow2Radius, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Layer 3: Inner glow
-      const glow3Radius = ROOT_GLOW_RADIUS * 0.35;
-      const glow3 = ctx.createRadialGradient(x, y, 0, x, y, glow3Radius);
-      glow3.addColorStop(0, `rgba(${r}, ${g}, ${b}, 0.25)`);
-      glow3.addColorStop(0.4, `rgba(${r}, ${g}, ${b}, 0.12)`);
-      glow3.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0)`);
-      ctx.fillStyle = glow3;
-      ctx.beginPath();
-      ctx.arc(x, y, glow3Radius, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Layer 4: Core halo
+      // Core halo
       const haloRadius = ROOT_ORB_RADIUS * 1.5;
       const halo = ctx.createRadialGradient(x, y, 0, x, y, haloRadius);
       halo.addColorStop(0, `rgba(255, 255, 255, 0.55)`);
