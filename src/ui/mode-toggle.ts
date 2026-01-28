@@ -87,7 +87,7 @@ export class ModeToggle {
 
   private createInfoPopup(parent: HTMLElement): void {
     this.infoPopup = document.createElement('div');
-    this.infoPopup.className = 'popup popup--hidden';
+    this.infoPopup.className = 'popup'; // Open by default on startup
     this.infoPopup.innerHTML = `
       <div class="popup__header">
         <span class="popup__title">Info</span>
