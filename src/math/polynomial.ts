@@ -14,12 +14,30 @@ export function parsePolynomial(input: string): ParseResult {
     return { ok: false, error: '' }; // empty input, silent
   }
 
+  // Check for invalid trig patterns: sin-x, cos-x (negative arg without parentheses)
+  if (/(?:sin|cos|tan|cot|sec|csc)-[a-zA-Z0-9]/.test(trimmed)) {
+    return { ok: false, error: 'Negative trig arguments must be in parentheses, e.g. sin(-x)' };
+  }
+
   try {
+    let processed = trimmed;
+
+    // Pre-process trig functions with non-parenthesized arguments:
+    // sinx → sin(x), sin2x → sin(2*x), sinpi → sin(pi), etc.
+    // But not sin(x) which already has parens
+    processed = processed.replace(
+      /\b(sin|cos|tan|cot|sec|csc)([a-zA-Z0-9]+)(?!\s*\()/g,
+      (_, fn, arg) => {
+        // Check if arg starts with a digit followed by letters (like 2x → 2*x)
+        const expanded = arg.replace(/^(\d+)([a-zA-Z])/, '$1*$2');
+        return `${fn}(${expanded})`;
+      }
+    );
+
     // Pre-process `i` into mathjs complex literals:
     // 1. `2iz` → `2*(1i)*z` (digit-i-variable)
     // 2. `iz` → `(1i)*z` (standalone i before variable)
     // 3. `i` → `(1i)` (standalone i, not adjacent to letter/digit)
-    let processed = trimmed;
     processed = processed.replace(/(\d)i(?=[a-zA-Z])/g, '$1*(1i)*');
     processed = processed.replace(/(?<![a-zA-Z0-9])i(?=[a-zA-Z])/g, '(1i)*');
     processed = processed.replace(/(?<![a-zA-Z0-9])i(?![a-zA-Z0-9])/g, '(1i)');

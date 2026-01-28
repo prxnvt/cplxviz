@@ -6,6 +6,7 @@ import { getCoordinateMode, onCoordinateModeChange } from '../state/coordinate-m
 const BG_COLOR = '#000000';
 const MINOR_GRID_COLOR = 'rgba(255, 255, 255, 0.04)';
 const MAJOR_GRID_COLOR = 'rgba(255, 255, 255, 0.10)';
+const POLAR_CIRCLE_COLOR = 'rgba(255, 255, 255, 0.5)';
 const AXIS_COLOR = 'rgba(255, 255, 255, 1)';
 const ROOT_COLOR_R = 255;
 const ROOT_COLOR_G = 255;
@@ -206,6 +207,7 @@ export class ComplexPlane {
     y: number,
     align: 'left' | 'center' | 'right',
     baseline: 'top' | 'middle' | 'bottom',
+    fontSize: number = LABEL_SIZE_PX,
   ) {
     this.usedLabels.add(key);
     let el = this.labelPool.get(key);
@@ -218,11 +220,12 @@ export class ComplexPlane {
       this.labelPool.set(key, el);
     }
 
-    if (el.dataset.latex !== latex) {
+    const sizeKey = `${latex}:${fontSize}`;
+    if (el.dataset.sizeKey !== sizeKey) {
       katex.render(latex, el, { throwOnError: false });
-      el.dataset.latex = latex;
+      el.dataset.sizeKey = sizeKey;
       const k = el.querySelector('.katex') as HTMLElement | null;
-      if (k) k.style.fontSize = `${LABEL_SIZE_PX}px`;
+      if (k) k.style.fontSize = `${fontSize}px`;
     }
 
     let tx = '0%';
@@ -309,9 +312,8 @@ export class ComplexPlane {
       }
     }
 
-    // Angle labels at π/6 intervals, placed near viewport edges
+    // Angle labels at π/6 intervals, placed along radial lines
     const angleLabels: Array<{ angle: number; latex: string }> = [
-      { angle: 0, latex: '0' },
       { angle: Math.PI / 6, latex: '\\frac{\\pi}{6}' },
       { angle: Math.PI / 3, latex: '\\frac{\\pi}{3}' },
       { angle: Math.PI / 2, latex: '\\frac{\\pi}{2}' },
@@ -325,26 +327,33 @@ export class ComplexPlane {
       { angle: -Math.PI / 6, latex: '-\\frac{\\pi}{6}' },
     ];
 
-    const margin = 30;
+    // Adaptive radius: start at r=3, double when zoomed out (r=6, r=12, etc.)
+    // Fall back to 2/3 screen height when zoomed in past r=3
+    const minScreenFraction = 0.25; // Labels should be at least this fraction from origin
+    const maxScreenFraction = 0.8;  // Labels shouldn't exceed this fraction of screen
+    const screenSize = Math.min(this.width, this.height);
+
+    let labelRadius = 3;
+    let labelRadiusPx = labelRadius / this.viewport.scale;
+
+    // If too small (zoomed out), double the radius until it's visible enough
+    while (labelRadiusPx < screenSize * minScreenFraction && labelRadius < 1000) {
+      labelRadius *= 2;
+      labelRadiusPx = labelRadius / this.viewport.scale;
+    }
+
+    // If too large (zoomed in), use screen-based fallback
+    if (labelRadiusPx > screenSize * maxScreenFraction) {
+      labelRadiusPx = (this.height * 2) / 3;
+    }
+
     for (const { angle, latex } of angleLabels) {
-      // Find intersection with viewport edge
-      const cos = Math.cos(angle);
-      const sin = Math.sin(angle);
+      const x = origin.x + labelRadiusPx * Math.cos(angle);
+      const y = origin.y - labelRadiusPx * Math.sin(angle);
 
-      // Place label at a radius that puts it near the edge
-      const radiusToEdge = Math.min(
-        cos !== 0 ? Math.abs((cos > 0 ? this.width - origin.x - margin : origin.x - margin) / cos) : Infinity,
-        sin !== 0 ? Math.abs((sin > 0 ? origin.y - margin : this.height - origin.y - margin) / sin) : Infinity,
-      );
-
-      if (radiusToEdge > 40 && radiusToEdge < Infinity) {
-        const x = origin.x + radiusToEdge * cos;
-        const y = origin.y - radiusToEdge * sin;
-
-        // Ensure within viewport
-        if (x > margin && x < this.width - margin && y > margin && y < this.height - margin) {
-          this.placeLabel(`tick-angle-${angle.toFixed(4)}`, latex, x, y, 'center', 'middle');
-        }
+      // Only place if within viewport with some margin
+      if (x > 20 && x < this.width - 20 && y > 20 && y < this.height - 20) {
+        this.placeLabel(`tick-angle-${angle.toFixed(4)}`, latex, x, y, 'center', 'middle', 32);
       }
     }
   }
@@ -448,7 +457,7 @@ export class ComplexPlane {
 
     // Minor circles (spacing / 5)
     const minorSpacing = spacing / 5;
-    ctx.strokeStyle = MINOR_GRID_COLOR;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
     ctx.lineWidth = 0.5;
     ctx.beginPath();
     for (let r = minorSpacing; r <= maxRadius; r += minorSpacing) {
@@ -458,8 +467,8 @@ export class ComplexPlane {
     }
     ctx.stroke();
 
-    // Major circles
-    ctx.strokeStyle = MAJOR_GRID_COLOR;
+    // Major circles - white for polar grid
+    ctx.strokeStyle = POLAR_CIRCLE_COLOR;
     ctx.lineWidth = 1;
     ctx.beginPath();
     for (let r = spacing; r <= maxRadius; r += spacing) {

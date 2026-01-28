@@ -15,6 +15,10 @@ export class PolynomialInput {
     const wrapper = document.createElement('div');
     wrapper.className = 'input-container';
 
+    const header = document.createElement('div');
+    header.className = 'input-header';
+    header.textContent = 'Input';
+
     const row = document.createElement('div');
     row.className = 'input-row';
 
@@ -37,6 +41,7 @@ export class PolynomialInput {
     row.appendChild(this.input);
     row.appendChild(this.display);
 
+    wrapper.appendChild(header);
     wrapper.appendChild(row);
     container.appendChild(wrapper);
 
