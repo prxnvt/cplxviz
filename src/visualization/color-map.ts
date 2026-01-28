@@ -35,7 +35,7 @@ function bump(hue: number, center: number, radius: number): number {
 }
 
 function buildLUT() {
-  const sat = 0.4;
+  const sat = 0.5;
   const baseLit = 0.30;
   const warmBias = -0.03; // shift all hues ~11° toward red for warmer tones
   // Hue warp: shift secondaries toward their neighboring primary.
@@ -48,10 +48,11 @@ function buildLUT() {
     const warp = warpAmt * (1 - Math.cos(6 * Math.PI * rawHue)) / 2;
     const hue = ((rawHue + warp + warmBias) % 1 + 1) % 1;
 
-    // Per-hue lightness: brighter red, dimmer green/yellow
-    const redBoost = 0.12 * bump(rawHue, 0, 0.15);
-    const gyDim   = -0.08 * bump(rawHue, 0.25, 0.15);
-    const lit = baseLit + redBoost + gyDim;
+    // Per-hue lightness: brighter red, slightly brighter blue, dimmer green/yellow
+    const redBoost  = 0.12 * bump(rawHue, 0, 0.15);
+    const blueBoost = 0.05 * bump(rawHue, 0.667, 0.12);
+    const gyDim     = -0.08 * bump(rawHue, 0.25, 0.15);
+    const lit = baseLit + redBoost + blueBoost + gyDim;
 
     const [r, g, b] = hslToRgb(hue, sat, lit);
     const off = i * 3;

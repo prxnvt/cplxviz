@@ -34,6 +34,7 @@ function handleInput(value: string) {
   plane.setRoots(roots);
   plane.setCoefficients(currentPoly.coefficients);
   coordDisplay.setPolynomialData(currentPoly.coefficients, roots);
+  polyInput.setLatex(formatPolynomialLatex(currentPoly));
   return result;
 }
 

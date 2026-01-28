@@ -5,10 +5,8 @@ const PI = Math.PI;
 const TWO_PI = PI * 2;
 const DS = 8;               // downsample factor (higher = more blur)
 const EDGE_MARGIN = 80;     // CSS px fade band at each edge
-const ALPHA_K = 16.0;       // k / (mag + k) — colors extend far from roots
+const ALPHA_K = 96.0;       // k / (mag + k) — colors extend far from roots
 const MAX_ALPHA = 1.0;      // full intensity at root centers
-const DITHER_AMT = 0.3;    // radians of phase noise to soften hue boundaries
-const BLUR_PX = 6;         // Gaussian blur radius on final blit (CSS px)
 
 export class DomainColoringRenderer {
   private offCanvas: HTMLCanvasElement;
@@ -92,10 +90,8 @@ export class DomainColoringRenderer {
           wIm = newIm;
         }
 
-        // Phase -> LUT index (position-seeded dither softens hue boundaries)
-        const h = Math.sin(px * 12.9898 + py * 78.233) * 43758.5453;
-        const dither = (h - Math.floor(h) - 0.5) * DITHER_AMT;
-        const theta = Math.atan2(wIm, wRe) + dither;
+        // Phase -> LUT index
+        const theta = Math.atan2(wIm, wRe);
         let idx = ((theta + PI) * (LUT_SIZE / TWO_PI)) | 0;
         if (idx >= LUT_SIZE) idx = LUT_SIZE - 1;
         if (idx < 0) idx = 0;
@@ -123,8 +119,6 @@ export class DomainColoringRenderer {
     }
 
     this.offCtx.putImageData(img, 0, 0);
-    ctx.filter = `blur(${BLUR_PX}px)`;
     ctx.drawImage(this.offCanvas, 0, 0, bw, bh, 0, 0, width, height);
-    ctx.filter = 'none';
   }
 }
