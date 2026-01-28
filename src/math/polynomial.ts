@@ -1,8 +1,73 @@
 import { parse, derivative, isComplex, polynomialRoot } from 'mathjs';
 import type { MathNode } from 'mathjs';
 import type { ComplexPoint, Polynomial, ParseResult, RootFindingResult } from '../types/index.ts';
-import { multiply, subtract, divide, evaluatePolynomial, magnitude, formatComplex, formatPolarLatex, formatEulerLatex } from './complex.ts';
+import { add, multiply, subtract, divide, evaluatePolynomial, magnitude, formatComplex, formatPolarLatex, formatEulerLatex } from './complex.ts';
 import type { CoordinateMode } from '../state/coordinate-mode.ts';
+
+export interface ComplexParseResult {
+  ok: boolean;
+  value?: ComplexPoint;
+  error?: string;
+}
+
+/**
+ * Parse an expression that evaluates to a single complex number.
+ * Accepts: sqrt(2), pi, e, i, 2i, 1+i, 2^3, cos(pi/4), sin(pi/3), sqrt(2)/2
+ */
+export function parseComplexExpression(input: string): ComplexParseResult {
+  const trimmed = input.trim();
+  if (!trimmed) {
+    return { ok: false, error: '' }; // empty input, silent
+  }
+
+  try {
+    let processed = trimmed;
+
+    // Pre-process trig functions with non-parenthesized arguments:
+    // sinpi → sin(pi), cos2 → cos(2), etc.
+    processed = processed.replace(
+      /\b(sin|cos|tan|cot|sec|csc)([a-zA-Z0-9]+)(?!\s*\()/g,
+      (_, fn, arg) => {
+        const expanded = arg.replace(/^(\d+)([a-zA-Z])/, '$1*$2');
+        return `${fn}(${expanded})`;
+      }
+    );
+
+    // Pre-process `i` into mathjs complex literals:
+    // 1. `2i` at word boundary → `2*(1i)`
+    // 2. `i` standalone → `(1i)`
+    processed = processed.replace(/(\d)i(?![a-zA-Z])/g, '$1*(1i)');
+    processed = processed.replace(/(?<![a-zA-Z0-9])i(?![a-zA-Z0-9])/g, '(1i)');
+
+    const tree = parse(processed);
+
+    // Evaluate the expression - mathjs will throw if there are undefined symbols
+    const value = tree.evaluate();
+
+    // Convert to ComplexPoint
+    let result: ComplexPoint;
+    if (typeof value === 'number') {
+      result = { re: value, im: 0 };
+    } else if (isComplex(value)) {
+      result = { re: (value as { re: number; im: number }).re, im: (value as { re: number; im: number }).im };
+    } else {
+      result = { re: Number(value), im: 0 };
+    }
+
+    // Clean near-zero components
+    if (Math.abs(result.re) < 1e-10) result.re = 0;
+    if (Math.abs(result.im) < 1e-10) result.im = 0;
+
+    // Check for NaN/Infinity
+    if (!isFinite(result.re) || !isFinite(result.im)) {
+      return { ok: false, error: 'Result is not finite' };
+    }
+
+    return { ok: true, value: result };
+  } catch {
+    return { ok: false, error: 'Invalid expression' };
+  }
+}
 
 /**
  * Parse a polynomial expression, supporting complex coefficients (including `i`).
@@ -44,12 +109,13 @@ export function parsePolynomial(input: string): ParseResult {
 
     const tree = parse(processed);
 
-    // Detect the free variable (ignore `i` which we already replaced)
+    // Detect the free variable (ignore `i` which we already replaced, and built-in constants)
+    const builtinConstants = new Set(['i', 'pi', 'e']);
     const variables = new Set<string>();
     tree.traverse((node: MathNode) => {
       if (node.type === 'SymbolNode') {
         const name = (node as unknown as { name: string }).name;
-        if (name !== 'i') {
+        if (!builtinConstants.has(name)) {
           variables.add(name);
         }
       }
@@ -308,6 +374,41 @@ function formatComplexLatex(z: ComplexPoint): string {
   const absIm = Math.abs(im);
   const imPart = absIm === 1 ? 'i' : `${formatRealCoeff(absIm)}i`;
   return `${formatRealCoeff(re)} ${sign} ${imPart}`;
+}
+
+/**
+ * Compute polynomial coefficients from roots via polynomial multiplication.
+ * A monic polynomial is uniquely determined by its roots: p(z) = (z - r₁)(z - r₂)...(z - rₙ)
+ * Coefficients are returned in ascending order [a₀, a₁, ..., aₙ].
+ */
+export function rootsToCoefficients(
+  roots: ComplexPoint[],
+  leadingCoeff: ComplexPoint = { re: 1, im: 0 }
+): ComplexPoint[] {
+  // Start with [leadingCoeff] representing the constant polynomial
+  let coeffs: ComplexPoint[] = [leadingCoeff];
+
+  for (const root of roots) {
+    // Multiply current polynomial by (z - root)
+    // [c0, c1, ..., cn] * (z - r) = [-r*c0, c0-r*c1, c1-r*c2, ..., cn-1-r*cn, cn]
+    const newCoeffs: ComplexPoint[] = [];
+    const negRoot = { re: -root.re, im: -root.im };
+
+    // First term: -root * c0
+    newCoeffs.push(multiply(negRoot, coeffs[0]));
+
+    // Middle terms: c[i-1] - root * c[i]
+    for (let i = 1; i < coeffs.length; i++) {
+      newCoeffs.push(add(coeffs[i - 1], multiply(negRoot, coeffs[i])));
+    }
+
+    // Last term: c[n] (coefficient of highest power)
+    newCoeffs.push(coeffs[coeffs.length - 1]);
+
+    coeffs = newCoeffs;
+  }
+
+  return coeffs;
 }
 
 export function findRoots(poly: Polynomial): RootFindingResult {

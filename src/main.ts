@@ -5,16 +5,30 @@ import { PolynomialInput } from './ui/input.ts';
 import { ViewControls } from './ui/controls.ts';
 import { CoordinateDisplay } from './ui/coordinate-display.ts';
 import { ModeToggle } from './ui/mode-toggle.ts';
-import { findRoots, formatPolynomial, formatPolynomialLatex, parsePolynomial } from './math/polynomial.ts';
+import { findRoots, formatPolynomial, formatPolynomialLatex, parsePolynomial, rootsToCoefficients } from './math/polynomial.ts';
 import { getCoordinateMode, onCoordinateModeChange } from './state/coordinate-mode.ts';
 import type { ComplexPoint, Polynomial } from './types/index.ts';
 
 const app = document.getElementById('app')!;
 const plane = new ComplexPlane(app);
-const coordDisplay = new CoordinateDisplay(app);
 new ModeToggle(app);
 
 let currentPoly: Polynomial | null = null;
+
+const coordDisplay = new CoordinateDisplay(app, {
+  onCoefficientEdit(index, value) {
+    if (!currentPoly) return;
+    const coefficients = [...currentPoly.coefficients];
+    coefficients[index] = value;
+    updateFromCoefficients(coefficients);
+  },
+  onRootEdit(index, value) {
+    if (!currentPoly) return;
+    const roots = [...plane.getRoots()];
+    roots[index] = value;
+    updateFromRoots(roots);
+  },
+});
 
 function handleInput(value: string) {
   const result = parsePolynomial(value);
@@ -69,6 +83,25 @@ function updateFromCoefficients(coefficients: ComplexPoint[]) {
   polyInput.setError(false);
 }
 
+function updateFromRoots(roots: ComplexPoint[]) {
+  // Preserve leading coefficient from current polynomial
+  const leadingCoeff = currentPoly
+    ? currentPoly.coefficients[currentPoly.degree]
+    : { re: 1, im: 0 };
+
+  const coefficients = rootsToCoefficients(roots, leadingCoeff);
+  const degree = coefficients.length - 1;
+  const variable = currentPoly?.variable ?? 'z';
+  const poly: Polynomial = { coefficients, degree, variable };
+  currentPoly = poly;
+
+  plane.setRoots(roots);
+  plane.setCoefficients(poly.coefficients);
+  coordDisplay.setPolynomialData(poly.coefficients, roots);
+  applyStandardForm(poly);
+  polyInput.setError(false);
+}
+
 const polyInput = new PolynomialInput(
   app,
   handleInput,
@@ -86,6 +119,12 @@ new ViewControls(plane, {
     const coefficients = [...currentPoly.coefficients];
     coefficients[index] = value;
     updateFromCoefficients(coefficients);
+  },
+  onRootDrag(index, value: ComplexPoint) {
+    if (!currentPoly) return;
+    const roots = [...plane.getRoots()];
+    roots[index] = value;
+    updateFromRoots(roots);
   },
   onPointHover(point, label) {
     coordDisplay.update(point, label);

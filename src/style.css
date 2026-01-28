@@ -192,3 +192,74 @@ canvas.dragging {
   text-decoration: underline;
   text-underline-offset: 3px;
 }
+
+/* Inline edit rows for coefficients/roots */
+.coord-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0;
+  margin-bottom: 2px;
+}
+
+.coord-row__label {
+  font-size: 22px;
+  white-space: nowrap;
+}
+
+.coord-row__label .katex {
+  font-size: 22px;
+}
+
+.coord-row__value {
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.coord-row__value:hover {
+  color: #8af;
+}
+
+.coord-row__value .katex {
+  font-size: 22px;
+}
+
+.coord-row__edit {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.coord-row__input {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 3px;
+  color: #fff;
+  font-family: "KaTeX_Main", "Latin Modern Roman", "Computer Modern", serif;
+  font-size: 18px;
+  padding: 2px 6px;
+  width: 140px;
+  outline: none;
+}
+
+.coord-row__input:focus {
+  border-color: rgba(255, 255, 255, 0.6);
+}
+
+.coord-row__input--error {
+  color: #ff4466;
+  border-color: #ff4466;
+}
+
+.coord-row__preview {
+  font-size: 16px;
+  color: rgba(255, 255, 255, 0.7);
+  min-height: 20px;
+}
+
+.coord-row__preview .katex {
+  font-size: 16px;
+}
+
+.coord-row__preview--error {
+  color: #ff4466;
+}

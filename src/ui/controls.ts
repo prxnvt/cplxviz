@@ -14,6 +14,7 @@ function subscriptDigit(n: number): string {
 
 export interface ViewControlsOptions {
   onCoefficientDrag?: (index: number, value: ComplexPoint) => void;
+  onRootDrag?: (index: number, value: ComplexPoint) => void;
   onPointHover?: (point: ComplexPoint, label: string) => void;
 }
 
@@ -25,7 +26,10 @@ export class ViewControls {
 
   // Coefficient dragging state
   private draggingCoeff = -1; // index into ascending coefficients, or -1
+  // Root dragging state
+  private draggingRoot = -1; // index into roots array, or -1
   private onCoefficientDrag: ((index: number, value: ComplexPoint) => void) | null = null;
+  private onRootDrag: ((index: number, value: ComplexPoint) => void) | null = null;
   private onPointHover: ((point: ComplexPoint, label: string) => void) | null = null;
 
   constructor(plane: ComplexPlane, opts?: ViewControlsOptions);
@@ -41,6 +45,7 @@ export class ViewControls {
       this.onCoefficientDrag = optsOrCallback;
     } else if (optsOrCallback) {
       this.onCoefficientDrag = optsOrCallback.onCoefficientDrag ?? null;
+      this.onRootDrag = optsOrCallback.onRootDrag ?? null;
       this.onPointHover = optsOrCallback.onPointHover ?? null;
     }
 
@@ -62,7 +67,15 @@ export class ViewControls {
     const sx = e.clientX - rect.left;
     const sy = e.clientY - rect.top;
 
-    // Check coefficient hit first
+    // Check root hit first (roots rendered on top)
+    const rootIdx = this.plane.hitTestRoot(sx, sy);
+    if (rootIdx >= 0) {
+      this.draggingRoot = rootIdx;
+      this.plane.canvas.classList.add('dragging');
+      return;
+    }
+
+    // Check coefficient hit
     const coeffIdx = this.plane.hitTestCoefficient(sx, sy);
     if (coeffIdx >= 0) {
       this.draggingCoeff = coeffIdx;
@@ -82,11 +95,19 @@ export class ViewControls {
     const sx = e.clientX - rect.left;
     const sy = e.clientY - rect.top;
 
+    if (this.draggingRoot >= 0) {
+      const complexPos = this.plane.screenToComplex(sx, sy);
+      const snapped: ComplexPoint = { re: snap(complexPos.re), im: snap(complexPos.im) };
+      this.onRootDrag?.(this.draggingRoot, snapped);
+      this.emitPointHover(sx, sy, snapped, 'root');
+      return;
+    }
+
     if (this.draggingCoeff >= 0) {
       const complexPos = this.plane.screenToComplex(sx, sy);
       const snapped: ComplexPoint = { re: snap(complexPos.re), im: snap(complexPos.im) };
       this.onCoefficientDrag?.(this.draggingCoeff, snapped);
-      this.emitPointHover(sx, sy, snapped);
+      this.emitPointHover(sx, sy, snapped, 'coeff');
       return;
     }
 
@@ -104,19 +125,33 @@ export class ViewControls {
     this.emitPointHover(sx, sy);
   };
 
-  private emitPointHover(sx: number, sy: number, draggedCoeff?: ComplexPoint) {
+  private emitPointHover(sx: number, sy: number, draggedPoint?: ComplexPoint, dragType?: 'root' | 'coeff') {
     if (!this.onPointHover) return;
 
-    // If dragging a coefficient, show the dragged value
-    if (draggedCoeff && this.draggingCoeff >= 0) {
-      const coefficients = this.plane.getCoefficients();
-      const degree = coefficients.length - 1;
-      const letter = String.fromCharCode(97 + (degree - this.draggingCoeff));
-      this.onPointHover(draggedCoeff, `Coeff ${letter}`);
+    // If dragging a root, show the dragged value
+    if (draggedPoint && dragType === 'root' && this.draggingRoot >= 0) {
+      this.onPointHover(draggedPoint, `Root z${subscriptDigit(this.draggingRoot + 1)}`);
       return;
     }
 
-    // Hit-test coefficients first (interactive, take priority)
+    // If dragging a coefficient, show the dragged value
+    if (draggedPoint && dragType === 'coeff' && this.draggingCoeff >= 0) {
+      const coefficients = this.plane.getCoefficients();
+      const degree = coefficients.length - 1;
+      const letter = String.fromCharCode(97 + (degree - this.draggingCoeff));
+      this.onPointHover(draggedPoint, `Coeff ${letter}`);
+      return;
+    }
+
+    // Hit-test roots first (interactive, take priority since rendered on top)
+    const rootIdx = this.plane.hitTestRoot(sx, sy);
+    if (rootIdx >= 0) {
+      const roots = this.plane.getRoots();
+      this.onPointHover(roots[rootIdx], `Root z${subscriptDigit(rootIdx + 1)}`);
+      return;
+    }
+
+    // Hit-test coefficients
     const coeffIdx = this.plane.hitTestCoefficient(sx, sy);
     if (coeffIdx >= 0) {
       const coefficients = this.plane.getCoefficients();
@@ -126,20 +161,17 @@ export class ViewControls {
       return;
     }
 
-    // Hit-test roots
-    const rootIdx = this.plane.hitTestRoot(sx, sy);
-    if (rootIdx >= 0) {
-      const roots = this.plane.getRoots();
-      this.onPointHover(roots[rootIdx], `Root z${subscriptDigit(rootIdx + 1)}`);
-      return;
-    }
-
     // Default: cursor position
     const cursorPoint = this.plane.screenToComplex(sx, sy);
     this.onPointHover(cursorPoint, 'Cursor');
   }
 
   private onMouseUp = () => {
+    if (this.draggingRoot >= 0) {
+      this.draggingRoot = -1;
+      this.plane.canvas.classList.remove('dragging');
+      return;
+    }
     if (this.draggingCoeff >= 0) {
       this.draggingCoeff = -1;
       this.plane.canvas.classList.remove('dragging');
