@@ -348,8 +348,14 @@ export class ComplexPlane {
     }
 
     for (const { angle, latex } of angleLabels) {
-      const x = origin.x + labelRadiusPx * Math.cos(angle);
+      let x = origin.x + labelRadiusPx * Math.cos(angle);
       const y = origin.y - labelRadiusPx * Math.sin(angle);
+
+      // Shift π/2 and -π/2 labels to the right so they're not cut by the y-axis
+      const isVerticalAxis = Math.abs(Math.abs(angle) - Math.PI / 2) < 0.01;
+      if (isVerticalAxis) {
+        x += 30; // Offset to the right
+      }
 
       // Only place if within viewport with some margin
       if (x > 20 && x < this.width - 20 && y > 20 && y < this.height - 20) {
@@ -478,9 +484,9 @@ export class ComplexPlane {
     }
     ctx.stroke();
 
-    // Radial lines at π/6 intervals (12 lines)
+    // Radial lines at π/6 intervals (12 lines) - white for better visibility
     const maxRadiusPx = maxRadius / this.viewport.scale;
-    ctx.strokeStyle = MAJOR_GRID_COLOR;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
     ctx.lineWidth = 1;
     ctx.beginPath();
     for (let i = 0; i < 12; i++) {

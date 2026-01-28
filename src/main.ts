@@ -7,6 +7,7 @@ import { CoordinateDisplay } from './ui/coordinate-display.ts';
 import { ModeToggle } from './ui/mode-toggle.ts';
 import { findRoots, formatPolynomial, formatPolynomialLatex, parsePolynomial, rootsToCoefficients } from './math/polynomial.ts';
 import { getCoordinateMode, onCoordinateModeChange } from './state/coordinate-mode.ts';
+import { onLightFalloffChange } from './state/light-falloff.ts';
 import type { ComplexPoint, Polynomial } from './types/index.ts';
 
 const app = document.getElementById('app')!;
@@ -136,6 +137,11 @@ onCoordinateModeChange(() => {
   if (currentPoly) {
     polyInput.setLatex(formatPolynomialLatex(currentPoly, getCoordinateMode()));
   }
+});
+
+// Re-render when light falloff changes
+onLightFalloffChange(() => {
+  plane.markDirty();
 });
 
 // Initialize with default polynomial z^4

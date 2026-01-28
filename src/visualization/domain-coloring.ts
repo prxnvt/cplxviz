@@ -1,5 +1,6 @@
 import { PHASE_COLOR_LUT, LUT_SIZE } from './color-map.ts';
 import type { ComplexPoint, Viewport } from '../types/index.ts';
+import { getLightFalloff } from '../state/light-falloff.ts';
 
 const PI = Math.PI;
 const TWO_PI = PI * 2;
@@ -59,12 +60,16 @@ export class DomainColoringRenderer {
     const originRe = viewport.center.re - (bw / 2) * scaledScale;
     const originIm = viewport.center.im + (bh / 2) * scaledScale;
 
-    // Circular fade: radius chosen so circle area = half viewport area
-    // Area of circle = π * r², viewport area = bw * bh
-    // π * r² = (bw * bh) / 2  =>  r = sqrt(bw * bh / (2π))
+    // Circular fade: radius controlled by light falloff setting
+    // 100 = no falloff (full brightness), 0 = near-immediate falloff
     const centerX = bw / 2;
     const centerY = bh / 2;
-    const fadeRadius = Math.sqrt((bw * bh) / (2 * PI));
+    const lightFalloff = getLightFalloff();
+    // Base radius from viewport area
+    const baseRadius = Math.sqrt((bw * bh) / (2 * PI));
+    // Scale radius based on falloff: at 100, radius is huge (no fade); at 0, radius is very small
+    const falloffMultiplier = 0.1 + (lightFalloff / 100) * 9.9; // Range: 0.1 to 10
+    const fadeRadius = baseRadius * falloffMultiplier;
     const invFadeRadius = 1 / fadeRadius;
 
     for (let py = 0; py < bh; py++) {
