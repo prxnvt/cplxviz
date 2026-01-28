@@ -263,3 +263,145 @@ canvas.dragging {
 .coord-row__preview--error {
   color: #ff4466;
 }
+
+/* Popup/Modal styles */
+.popup {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: #000;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 8px;
+  padding: 20px;
+  z-index: 100;
+  min-width: 320px;
+  max-width: 480px;
+  font-family: "KaTeX_Main", "Latin Modern Roman", "Computer Modern", serif;
+  font-size: 22px;
+  color: #fff;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8);
+}
+
+.popup--hidden {
+  display: none;
+}
+
+.popup__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.popup__title {
+  font-size: 22px;
+  font-weight: normal;
+  color: #fff;
+}
+
+.popup__close {
+  font-size: 28px;
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.6);
+  transition: color 0.15s ease;
+  line-height: 1;
+  padding: 0 4px;
+}
+
+.popup__close:hover {
+  color: #fff;
+}
+
+.popup__content {
+  font-size: 22px;
+  color: #fff;
+}
+
+.popup__text p {
+  margin: 0 0 12px 0;
+  line-height: 1.5;
+}
+
+.popup__text p:last-child {
+  margin-bottom: 0;
+}
+
+.popup__math {
+  margin: 16px 0;
+}
+
+.popup__math .katex {
+  font-size: 22px;
+}
+
+.popup__hint {
+  font-style: italic;
+  color: rgba(255, 255, 255, 0.8);
+  margin-top: 16px;
+}
+
+.popup__setting {
+  margin-bottom: 16px;
+}
+
+.popup__setting:last-child {
+  margin-bottom: 0;
+}
+
+.popup__label {
+  display: block;
+  font-size: 22px;
+  margin-bottom: 12px;
+  color: #fff;
+}
+
+.popup__slider-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.popup__slider-label {
+  font-size: 18px;
+  color: rgba(255, 255, 255, 0.7);
+  min-width: 30px;
+}
+
+.popup__slider {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+  outline: none;
+}
+
+.popup__slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  background: #fff;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.popup__slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  background: #fff;
+  border-radius: 50%;
+  cursor: pointer;
+  border: none;
+}
+
+.popup__description {
+  font-size: 18px;
+  color: rgba(255, 255, 255, 0.6);
+  margin-top: 10px;
+  line-height: 1.4;
+}
